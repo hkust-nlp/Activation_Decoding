@@ -1182,7 +1182,6 @@ class GenerationMixin:
         contrastive_decoding: Optional[bool] = None,
         student_model = None,
         # ours
-        with_dola:Optional[bool] = None,
         alpha:Optional[float] = None,
         info_layer:Optional[int] = None,
         decoding_strategy:Optional[str] = None,
@@ -1575,8 +1574,6 @@ class GenerationMixin:
                 streamer=streamer,
                 **model_kwargs,
             )
-        
-        # our activation decoding function call
         if is_greedy_gen_mode and activation_decoding:
             if generation_config.num_return_sequences > 1:
                 raise ValueError(
@@ -1598,7 +1595,6 @@ class GenerationMixin:
                 candidate_premature_layers=candidate_premature_layers,
                 relative_top=relative_top,
                 streamer=streamer,
-                with_dola=with_dola,
                 alpha=alpha,
                 info_layer=info_layer,
                 decoding_strategy=decoding_strategy,
@@ -1609,6 +1605,8 @@ class GenerationMixin:
                 **model_kwargs,
             )
 
+  
+        # our activation decoding function call
         if is_greedy_gen_mode and activation_dola_decoding:
             if generation_config.num_return_sequences > 1:
                 raise ValueError(
@@ -1630,7 +1628,6 @@ class GenerationMixin:
                 candidate_premature_layers=candidate_premature_layers,
                 relative_top=relative_top,
                 streamer=streamer,
-                with_dola=with_dola,
                 alpha=alpha,
                 info_layer=info_layer,
                 decoding_strategy=decoding_strategy,
@@ -1641,7 +1638,6 @@ class GenerationMixin:
                 **model_kwargs,
             )
 
-  
         if is_greedy_gen_mode and contrastive_decoding:
             if generation_config.num_return_sequences > 1:
                 raise ValueError(
@@ -1668,7 +1664,6 @@ class GenerationMixin:
                 **model_kwargs,
             )
 
-        
         elif is_greedy_gen_mode:
             if generation_config.num_return_sequences > 1:
                 raise ValueError(
@@ -2649,6 +2644,7 @@ class GenerationMixin:
                     hidden_states=decoder_hidden_states,
                 )
         else:
+            
             return input_ids
 
     def sample(
@@ -3058,6 +3054,7 @@ class GenerationMixin:
         ["It might be possible to get a better understanding of the nature of the problem, but it's not"]
         ```"""
         # init values
+        
         logits_processor = logits_processor if logits_processor is not None else LogitsProcessorList()
         stopping_criteria = stopping_criteria if stopping_criteria is not None else StoppingCriteriaList()
         if max_length is not None:
@@ -3262,8 +3259,6 @@ class GenerationMixin:
         else:
             return input_ids
         
-        
-    ################################## ENTROPY-BASED DECODING ##################################
     def activation_greedy_decode(
         self,
         input_ids: torch.LongTensor,
@@ -3282,7 +3277,6 @@ class GenerationMixin:
         return_dict_in_generate: Optional[bool] = None,
         synced_gpus: Optional[bool] = False,
         streamer: Optional["BaseStreamer"] = None,
-        with_dola:Optional[bool] = None,
         alpha:Optional[float] = None,
         info_layer:Optional[int] = None,
         decoding_strategy:Optional[str] = None,
@@ -3485,8 +3479,8 @@ class GenerationMixin:
             if synced_gpus and this_peer_finished:
                 continue  # don't waste resources running the code we don't need
             
-            # pdb.set_trace()
             # fetch the last token's embedding 
+        
             final_logits = dict_outputs[mature_layer][:, -1, :] 
             if base_layer is not None:
                 base_logits = dict_outputs[base_layer][:, -1, :]
@@ -3501,11 +3495,6 @@ class GenerationMixin:
                 next_token_logits = logits
             else:
                 
-                
-                if relative_top > 0.0:
-                    final_logits = self.relative_top_filter(final_logits, relative_top)
-                    mask = final_logits[0] < -1e3 
-                    index_nontop=torch.argwhere(mask).squeeze()  
                 logits = final_logits
                 # index_top=torch.argwhere(~mask).squeeze()
                 
@@ -3528,6 +3517,7 @@ class GenerationMixin:
                     before = (info_layer_score,)      
                                   
                     # compute entropy of the info layer
+                    # info_layer_probs = F.normalize(torch.t(info_layer_score), dim=1).unsqueeze(0)
                     info_layer_probs = F.softmax(torch.t(info_layer_score), dim=1).unsqueeze(0) # info_layer_score: [num_token_in_question, len_token_lib] -> e.g. [1, 250, 32000]
                     entropy = torch.distributions.Categorical(probs=info_layer_probs, validate_args = False).entropy() #[1,32000]
                 elif len(before) >= 1:
@@ -3536,20 +3526,32 @@ class GenerationMixin:
                     
                 # we compute the adjust_score to calibrate the original score
                 adjust_score = None
-                    
-
-                if decoding_strategy == 'entropy' or decoding_strategy == 'activation_dola':   
-                    # mask those tokens whose logits smaller than 1e-3 -> do not change these token's logits
-                    final_entropy = entropy.scatter(1, index_nontop.unsqueeze(0), float("Inf")) 
-                    # pdb.set_trace()    
-                    # use the entropy computed before
+                if decoding_strategy == 'subject':
+                    info_layer_probs = F.softmax(torch.t(info_layer_score), dim=1).unsqueeze(0) # info_layer_score: [num_token_in_question, len_token_lib] -> e.g. [1, 250, 32000]
+                    subject_probs = info_layer_probs[:,:,subject_key]
                     if alpha!=0:
-                        logits = logits + alpha*(-final_entropy)
-                    else:
+                        logits = logits + alpha*(subject_probs)
+                    
+                elif decoding_strategy == 'entropy' or decoding_strategy == 'activation_dola':   
+                    # mask those tokens whose logits smaller than 1e-3 -> do not change these token's logits
+                    if alpha==0:
                         logits=logits
+                        final_entropy=0
+                    else:
+                        if relative_top > 0.0:
+                            final_logits = self.relative_top_filter(final_logits, relative_top)
+                            mask = final_logits[0] < -1e3 
+                            index_nontop=torch.argwhere(mask).squeeze()  
+                        final_entropy = entropy.scatter(1, index_nontop.unsqueeze(0), float("Inf")) 
+                        pdb.set_trace()
+                        # use the entropy computed before
+                    
+                        logits = logits + alpha*(-final_entropy)
+                    
                     
                     adjust_score = - final_entropy
-   
+                  
+                    
                 next_token_logits = logits
                 ########################### ENTROPY STRATEGY END #########################
                 #################################################################################
@@ -3638,6 +3640,8 @@ class GenerationMixin:
         else:
             return input_ids
 
+
+    ################################## ENTROPY-BASED DECODING ##################################
     def activation_dola_greedy_decode(
         self,
         input_ids: torch.LongTensor,
@@ -3656,7 +3660,6 @@ class GenerationMixin:
         return_dict_in_generate: Optional[bool] = None,
         synced_gpus: Optional[bool] = False,
         streamer: Optional["BaseStreamer"] = None,
-        with_dola:Optional[bool] = None,
         alpha:Optional[float] = None,
         info_layer:Optional[int] = None,
         decoding_strategy:Optional[str] = None,
@@ -3861,6 +3864,7 @@ class GenerationMixin:
             
             # pdb.set_trace()
             # fetch the last token's embedding 
+            # pdb.set_trace()
             final_logits = dict_outputs[mature_layer][:, -1, :] 
             if base_layer is not None:
                 base_logits = dict_outputs[base_layer][:, -1, :]
@@ -3907,10 +3911,6 @@ class GenerationMixin:
                     index_nontop=torch.argwhere(mask).squeeze() 
                 logits = final_logits - base_logits
                     
-                
-                # index_top=torch.argwhere(~mask).squeeze()
-                
-                
                 # NOTE: at this stage, logits and final_logits are after softmax!
                 
                 
@@ -3929,6 +3929,7 @@ class GenerationMixin:
                     before = (info_layer_score,)      
                                   
                     # compute entropy of the info layer
+                    # info_layer_probs = F.normalize(torch.t(info_layer_score), dim=1).unsqueeze(0)
                     info_layer_probs = F.softmax(torch.t(info_layer_score), dim=1).unsqueeze(0) # info_layer_score: [num_token_in_question, len_token_lib] -> e.g. [1, 250, 32000]
                     entropy = torch.distributions.Categorical(probs=info_layer_probs, validate_args = False).entropy() #[1,32000]
                 elif len(before) >= 1:
@@ -3937,20 +3938,32 @@ class GenerationMixin:
                     
                 # we compute the adjust_score to calibrate the original score
                 adjust_score = None
-                    
-
-                if decoding_strategy == 'entropy' or decoding_strategy == 'activation_dola':   
-                    # mask those tokens whose logits smaller than 1e-3 -> do not change these token's logits
-                    final_entropy = entropy.scatter(1, index_nontop.unsqueeze(0), float("Inf")) 
-                    # pdb.set_trace()    
-                    # use the entropy computed before
+                if decoding_strategy == 'subject':
+                    info_layer_probs = F.softmax(torch.t(info_layer_score), dim=1).unsqueeze(0) # info_layer_score: [num_token_in_question, len_token_lib] -> e.g. [1, 250, 32000]
+                    subject_probs = info_layer_probs[:,:,subject_key]
                     if alpha!=0:
-                        logits = logits + alpha*(-final_entropy)
-                    else:
+                        logits = logits + alpha*(subject_probs)
+                    
+                elif decoding_strategy == 'entropy' or decoding_strategy == 'activation_dola':   
+                    # mask those tokens whose logits smaller than 1e-3 -> do not change these token's logits
+                    if alpha==0:
                         logits=logits
+                        final_entropy=0
+                    else:
+                        if relative_top > 0.0:
+                            final_logits = self.relative_top_filter(final_logits, relative_top)
+                            mask = final_logits[0] < -1e3 
+                            index_nontop=torch.argwhere(mask).squeeze()  
+                        final_entropy = entropy.scatter(1, index_nontop.unsqueeze(0), float("Inf")) 
+                        # pdb.set_trace()
+                        # use the entropy computed before
+                    
+                        logits = logits + alpha*(-final_entropy)
+                    
                     
                     adjust_score = - final_entropy
-   
+                  
+                    
                 next_token_logits = logits
                 ########################### ENTROPY STRATEGY END #########################
                 #################################################################################
@@ -4038,7 +4051,6 @@ class GenerationMixin:
                 )
         else:
             return input_ids
-
 
 
     def contrastive_greedy_decode(

@@ -85,11 +85,11 @@ class ConstraintDecoding():
                                         mature_layer=mature_layer, premature_layer=None, candidate_premature_layers=candidate_premature_layers,return_adjust_scores=return_adjust_scores, **kwargs,)
                 # pdb.set_trace()
                 premature_layer_dist = outputs.premature_layer_dist
-            elif mode =='consistent':
+            elif mode =='activation':
                 assert mature_layer is not None, "mature_layer must be specified"
                 assert candidate_premature_layers is not None, "candidate_premature_layers must be specified"
                 outputs = self.model.generate(input_ids, max_length=max_len, num_return_sequences=1, output_hidden_states=True,
-                                        output_scores=True, return_dict_in_generate=True, consistent_decoding=True,
+                                        output_scores=True, return_dict_in_generate=True, activation_decoding=True,
                                         top_p=top_p, top_k=top_k, temperature=temperature, stopping_criteria=self.stopping_criteria, relative_top=relative_top, 
                                         mature_layer=mature_layer, premature_layer=None, candidate_premature_layers=candidate_premature_layers, return_adjust_scores=return_adjust_scores, **kwargs,)
                 premature_layer_dist = outputs.premature_layer_dist
@@ -98,9 +98,9 @@ class ConstraintDecoding():
                 assert mature_layer is not None, "mature_layer must be specified"
                 assert candidate_premature_layers is not None, "candidate_premature_layers must be specified"
                 outputs = self.model.generate(input_ids, max_length=max_len, num_return_sequences=1,output_hidden_states=True,
-                                        output_scores=True, return_dict_in_generate=True, consistent_decoding=True,
+                                        output_scores=True, return_dict_in_generate=True, activation_dola_decoding=True,
                                         top_p=top_p, top_k=top_k, temperature=temperature, stopping_criteria=self.stopping_criteria, relative_top=relative_top, 
-                                        mature_layer=mature_layer, premature_layer=None, candidate_premature_layers=candidate_premature_layers,with_dola=with_dola,return_adjust_scores=return_adjust_scores, **kwargs,)
+                                        mature_layer=mature_layer, premature_layer=None, candidate_premature_layers=candidate_premature_layers,return_adjust_scores=return_adjust_scores, **kwargs,)
                 premature_layer_dist = outputs.premature_layer_dist
 
             sequences, scores = outputs.sequences, outputs.scores
@@ -124,7 +124,7 @@ class ConstraintDecoding():
         if self.device:
             torch.cuda.empty_cache()
             
-        return_tuple = (output_str, premature_layer_dist if mode in ['dola', 'consistent', 'with_dola'] else None)
+        return_tuple = (output_str, premature_layer_dist if mode in ['dola', 'activation', 'with_dola'] else None)
         
         if return_outputs or return_adjust_scores:
             return_tuple += (outputs,)
@@ -165,7 +165,7 @@ class ConstraintDecoding():
         probs_thresh = probs_thresh.unsqueeze(-1)
         return scores_normalized < probs_thresh
 
-    def lm_score(self, input_text1, input_text2, pmi=False, max_new_tokens=256, top_p=0.95, top_k=0, temperature=0.8, mature_layer=None, premature_layer=None, candidate_premature_layers=[], mode='baseline', verbose=True, remove_stop_words=False, relative_top=0.1, relative_top_value=-1000.0, post_softmax=True, alpha=0.1,mj_threshold=0.001,subject_key=0,**kwargs):
+    def lm_score(self, input_text1, input_text2, pmi=False, max_new_tokens=256, top_p=0.95, top_k=0, temperature=0.8, mature_layer=None, premature_layer=None, candidate_premature_layers=[], mode='baseline', verbose=True, remove_stop_words=False, relative_top=0.1, relative_top_value=-1000.0, post_softmax=True, alpha=0.1,mj_threshold=0.001,subject_key=0,info_layer=None,**kwargs):
         
         with torch.no_grad():
             input_text = input_text1 + input_text2
@@ -287,18 +287,19 @@ class ConstraintDecoding():
                     log_probs = diff_logits[range(diff_logits.shape[0]), continue_ids].sum().item() 
                     
 
-            elif mode == 'consistent':
+            elif mode == 'activation':
                 premature_layer_dist = {l:0 for l in candidate_premature_layers}
                 picked_logits = []
                 result_dict = {}
                 premature_layers = []
-
+                # pdb.set_trace()
                 dict_outputs, outputs = self.model(
                     input_ids=input_ids,
                     return_dict=True,
                     output_attentions=False,
                     output_hidden_states=False,
                     early_exit_layers=candidate_premature_layers + [mature_layer],
+                    info_layer=info_layer,
                 )
                 final_logits = dict_outputs[mature_layer][0, prefix_ids.shape[-1] - 1:-1]
                 # final_logits= self.model(input_ids)[0].squeeze(0)
@@ -309,8 +310,8 @@ class ConstraintDecoding():
                 mask = final_logits[0] < -1e3
                 
                 if kwargs['decoding_strategy']=='entropy':
-                    info_layer_score=dict_outputs[kwargs['info_layer']][-1, :, :]
-
+                    # info_layer_score=dict_outputs[kwargs['info_layer']][-1, :, :]
+                    info_layer_score=dict_outputs[info_layer][-1, :, :]
                     index_nontop=torch.argwhere(mask).squeeze()
                     info_layer_probs = F.softmax(torch.t(info_layer_score), dim=1).unsqueeze(0) # info_layer_score: [num_token_in_question, len_token_lib] -> e.g. [250, 32000]
                     entropy = torch.distributions.Categorical(probs=info_layer_probs, validate_args = False).entropy()
@@ -330,61 +331,6 @@ class ConstraintDecoding():
                     # entropy = entropy.scatter(1, index_nontop.unsqueeze(0), float("Inf"))
                     final_logits=entropy
 
-                if kwargs['decoding_strategy']=='majority_voting':
-                    info_layer_score=dict_outputs[kwargs['info_layer']][-1, :, :]
-
-                    index_nontop=torch.argwhere(mask).squeeze()
-                    info_layer_probs = F.softmax(torch.t(info_layer_score), dim=1) # info_layer_score: [num_token_in_question, len_token_lib] -> e.g. [250, 32000]
-                    majority_voting = (info_layer_probs > mj_threshold).sum(dim=1).unsqueeze(0)
-                    majority_voting = majority_voting.scatter(1, index_nontop.unsqueeze(0), float("Inf"))
-                    if alpha!=0:
-                        final_logits = final_logits + alpha*(majority_voting)
-                    
-                elif kwargs['decoding_strategy']=='entropy_inverse':
-                    info_layer_score=dict_outputs[kwargs['info_layer']][-1, :, :]
-
-                    index_nontop=torch.argwhere(mask).squeeze()
-                    info_layer_probs = F.softmax(torch.t(info_layer_score), dim=1).unsqueeze(0) # info_layer_score: [num_token_in_question, len_token_lib] -> e.g. [250, 32000]
-                    entropy = torch.distributions.Categorical(probs=info_layer_probs, validate_args = False).entropy()
-                
-                    entropy = entropy.scatter(1, index_nontop.unsqueeze(0), float("Inf"))
-
-                    
-                
-                    
-                    if alpha!=0:
-                        final_logits = final_logits + alpha*(1.0/entropy)
-                    else:
-                        final_logits = final_logits
-                
-                elif kwargs['decoding_strategy'] == 'tendency':
-                    info_layer_score=dict_outputs[kwargs['info_layer']][-1, :, :]
-                    # use the question's final embedding's token probability - the question's starting embedding
-                    diff = info_layer_score[-1, :] - info_layer_score[0, :]
-                    # TODO: logit is after softmax or before softmax? 
-                    
-                    final_logits = final_logits + alpha * diff
-
-                elif kwargs['decoding_strategy'] == 'EMA':
-                    """ EMA is a weighted average:
-                        - EMA is a moving average of all the 250 tokens' scores -> 
-                        - weighted: the lastest token has higher weight; but still contains the previous tokens' scores
-                        TODO: contradictive observation which does not align with EMA's motivation: false answer seems to have higher probability in later tokens (epsecially your output) -> why? we need to figure out which is the truth
-                    """
-                    def compute_ema(data, alpha=0.9):
-                        # data: [len_token_lib=32000, num_token_in_question=250]
-                        ema = torch.zeros_like(data)
-                        ema[:, 0] = data[:, 0]
-                        for i in range(1, data.size(1)):
-                            ema[:, i] = alpha * ema[:, i-1] + (1 - alpha) * data[:, i]
-                        return ema
-
-                    ema_data = compute_ema(torch.t(info_layer_score))
-
-                    # tell whether it is increasing or not: increasing_trends = ema_data[:, -1] > ema_data[:, 0]
-                    
-                    final_logits = final_logits + alpha * ema_data[:, -1] 
-                # get logprobs for each token in the answer
                 
                 log_probs = final_logits[range(final_logits.shape[0]), continue_ids].sum().item() 
 

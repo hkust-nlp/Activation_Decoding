@@ -248,6 +248,7 @@ if __name__ == "__main__":
     parser.add_argument("--alpha", type=float, default=0.1)
     parser.add_argument("--info_layer", type=int, default=24)
     parser.add_argument("--decoding_strategy", type=str)
+    parser.add_argument("--decoding_mode", type=str)
 
     
     args = parser.parse_args()
@@ -285,40 +286,52 @@ if __name__ == "__main__":
     early_exit_layers = [int(x) for x in args.early_exit_layers.split(',')]
 
 
-    if args.consistent:
-        mode="consistent"
-        print(f"MODE: Consistent decoding with mature layer: {early_exit_layers[-1]} and premature layers: {early_exit_layers[:-1]}")
+    if args.decoding_mode == 'activation':
+        mode="activation"
+        print(f"MODE: Activation decoding with mature layer: {early_exit_layers[-1]} and premature layers: {early_exit_layers[:-1]}")
+        
+        mature_layer = early_exit_layers[-1]
+        premature_layer = None
+        candidate_premature_layers = early_exit_layers[:-1]
+        # what is premature layer dist? distance?
+        premature_layer_dist = {l:0 for l in candidate_premature_layers}
+
+    elif args.decoding_mode == 'dola':
+        mode = "dola"
+        print(f"MODE: DoLa decoding with mature layer: {early_exit_layers[-1]} and premature layers: {early_exit_layers[:-1]}")
+        
         mature_layer = early_exit_layers[-1]
         premature_layer = None
         candidate_premature_layers = early_exit_layers[:-1]
         premature_layer_dist = {l:0 for l in candidate_premature_layers}
-    elif len(early_exit_layers) == 1:
+        
+    elif args.decoding_mode == 'activation_dola':
+        # TODO: not implemented yet
+        # mode="activation"
+        mode='with_dola'
+        print(f"MODE: Activation+DoLa decoding with mature layer: {early_exit_layers[-1]} and premature layers: {early_exit_layers[:-1]}")
+        mature_layer = early_exit_layers[-1]
+        premature_layer = None
+        candidate_premature_layers = early_exit_layers[:-1]
+        premature_layer_dist = {l:0 for l in candidate_premature_layers}
+        
+    elif args.decoding_mode == 'baseline' or args.decoding_mode == 'iti':
         print("MODE: naive decoding from the last layer", flush=True)
         mode = "baseline"
         mature_layer = None
         premature_layer = None
         candidate_premature_layers = None
+
     elif len(early_exit_layers) == 2:
         print(f"MODE: DoLa-static decoding with mature layer: {early_exit_layers[1]} and premature layer: {early_exit_layers[0]}")
         mode = "early_exit_contrastive"
         mature_layer = early_exit_layers[1]
         premature_layer = early_exit_layers[0]
         candidate_premature_layers = None
+
     else:
-        if args.with_dola:
-            print(f"MODE: Consistent-DoLa decoding with mature layer: {early_exit_layers[-1]} and premature layers: {early_exit_layers[:-1]}")
-            mode = "with_dola"
-            mature_layer = early_exit_layers[-1]
-            premature_layer = None
-            candidate_premature_layers = early_exit_layers[:-1]
-            premature_layer_dist = {l:0 for l in candidate_premature_layers}
-        else:
-            print(f"MODE: DoLa decoding with mature layer: {early_exit_layers[-1]} and premature layers: {early_exit_layers[:-1]}")
-            mode = "dola"
-            mature_layer = early_exit_layers[-1]
-            premature_layer = None
-            candidate_premature_layers = early_exit_layers[:-1]
-            premature_layer_dist = {l:0 for l in candidate_premature_layers}
+        raise NotImplementedError(f"Decoding mode {args.decoding_mode} not implemented yet.")
+
     answers = []
     result_dict = {'question': [], 'model_scores': [], 'total_mc1': 0.0, 'total_mc2': 0.0, 'total_mc3': 0.0}
     with torch.no_grad():
@@ -331,9 +344,13 @@ if __name__ == "__main__":
             scores_true = []
             scores_false = []
 
-            generate_kwargs = dict(max_new_tokens=args.max_new_tokens, repetition_penalty=args.repetition_penalty, mode=mode, mature_layer=mature_layer, premature_layer=premature_layer, candidate_premature_layers=candidate_premature_layers,\
-                               relative_top=args.relative_top, relative_top_value=args.relative_top_value, post_softmax=True,with_dola=args.with_dola,alpha=args.alpha,info_layer=args.info_layer,decoding_strategy=args.decoding_strategy)
+            # generate_kwargs = dict(max_new_tokens=args.max_new_tokens, repetition_penalty=args.repetition_penalty, mode=mode, mature_layer=mature_layer, premature_layer=premature_layer, candidate_premature_layers=candidate_premature_layers,\
+            #                    relative_top=args.relative_top, relative_top_value=args.relative_top_value, post_softmax=True,with_dola=args.with_dola,alpha=args.alpha,info_layer=args.info_layer,decoding_strategy=args.decoding_strategy)
             
+            generate_kwargs = dict(max_new_tokens=args.max_new_tokens, top_p=args.top_p, 
+                            top_k=args.top_k, temperature=args.temperature, repetition_penalty=args.repetition_penalty, mode=mode, mature_layer=mature_layer, premature_layer=premature_layer, candidate_premature_layers=candidate_premature_layers,
+                            alpha=args.alpha,info_layer=args.info_layer,decoding_strategy=args.decoding_strategy)
+    
             
 
             for temp_ans in ref_true:

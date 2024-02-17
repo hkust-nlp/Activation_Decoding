@@ -163,7 +163,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--model-name", type=str, default="huggyllama/llama-7b")
     parser.add_argument("--num-gpus", type=str, default="1")
-    parser.add_argument("--val_test_mode", type=str, default="1")
+    # parser.add_argument("--val_test_mode", type=str, default="1")
     
     parser.add_argument("--max_gpu_memory", type=int, default=27)
     parser.add_argument("--device", type=str, choices=["cuda", "cpu"], default="cuda")
@@ -186,7 +186,6 @@ if __name__ == "__main__":
     parser.add_argument("--dataset_name", type=str, choices=["triviaqa", "natural_questions", "hotpotqa"], default="triviaqa")
     parser.add_argument("--data_path", type=str, default="../scripts/data/nq")
     parser.add_argument("--decoding_mode", type=str, choices=["activation", "dola", "activation_dola", "baseline", 'iti'], default="activation")
-    parser.add_argument("--with_dola", action="store_true")
     parser.add_argument("--alpha", type=float, default=0.1)
     parser.add_argument("--info_layer", type=int, default=24)
     parser.add_argument("--decoding_strategy", type=str)
@@ -225,7 +224,7 @@ if __name__ == "__main__":
     # pdb.set_trace()
     if args.decoding_mode == 'activation':
         mode="activation"
-        print(f"MODE: Consistent decoding with mature layer: {early_exit_layers[-1]} and premature layers: {early_exit_layers[:-1]}")
+        print(f"MODE: Activation decoding with mature layer: {early_exit_layers[-1]} and premature layers: {early_exit_layers[:-1]}")
         
         mature_layer = early_exit_layers[-1]
         premature_layer = None
@@ -246,8 +245,8 @@ if __name__ == "__main__":
         # TODO: not implemented yet
         # mode="activation"
         mode='with_dola'
-        args.with_dola = True
-        print(f"MODE: Consistent+DoLa decoding with mature layer: {early_exit_layers[-1]} and premature layers: {early_exit_layers[:-1]}")
+        
+        print(f"MODE: Activation+DoLa decoding with mature layer: {early_exit_layers[-1]} and premature layers: {early_exit_layers[:-1]}")
 
         mature_layer = early_exit_layers[-1]
         premature_layer = None
@@ -294,7 +293,7 @@ if __name__ == "__main__":
  
     generate_kwargs = dict(max_new_tokens=args.max_new_tokens, top_p=args.top_p, 
                             top_k=args.top_k, temperature=args.temperature, repetition_penalty=args.repetition_penalty, mode=mode, mature_layer=mature_layer, premature_layer=premature_layer, candidate_premature_layers=candidate_premature_layers,
-                            with_dola=args.with_dola,alpha=args.alpha,info_layer=args.info_layer,decoding_strategy=args.decoding_strategy)
+                            alpha=args.alpha,info_layer=args.info_layer,decoding_strategy=args.decoding_strategy)
     
         
     result_dict = {'qid_list':[], 'answers': {}, 'model_completion': {}, 'questions': {}, 'logit_scores': {}}
@@ -317,22 +316,26 @@ if __name__ == "__main__":
     # val_idx = permute_idx[0:100]
     # test_idx = permute_idx[100:]
 
-    val_idx = permute_idx[0:int(len(list_data_dict)*.2)]
-    test_idx = permute_idx[int(len(list_data_dict)*.2):]
+    # val_idx = permute_idx[0:int(len(list_data_dict)*.2)]
+    # test_idx = permute_idx[int(len(list_data_dict)*.2):]
     
-    val_dataset = [list_data_dict[i] for i in val_idx]
-    test_dataset = [list_data_dict[idx] for idx in test_idx]
+    # val_dataset = [list_data_dict[i] for i in val_idx]
+    # test_dataset = [list_data_dict[idx] for idx in test_idx]
 
-    val_label = [labels[i] for i in val_idx]
-    test_label = [labels[idx] for idx in test_idx]
-    dataset=list_data_dict
-    if args.val_test_mode=='val':
-        dataset=val_dataset
-        labels=val_label
-    elif args.val_test_mode=='test':
-        dataset=test_dataset
-        labels=test_label
+    # val_label = [labels[i] for i in val_idx]
+    # test_label = [labels[idx] for idx in test_idx]
+    # dataset=list_data_dict
+    # if args.val_test_mode=='val':
+    #     dataset=val_dataset
+    #     labels=val_label
+    # elif args.val_test_mode=='test':
+    #     dataset=test_dataset
+    #     labels=test_label
     
+    dataset=list_data_dict
+    # dataset=dataset[:10]
+    # labels=labels[:10]
+
     for i, question in enumerate(tqdm(dataset)):
     # for i, question in enumerate(tqdm(val_dataset, desc='Processing')):
 
@@ -398,9 +401,9 @@ if __name__ == "__main__":
                 print('Premature layer {0} was used {1} times, {2}%'.format(l, premature_layer_dist[l], round(premature_layer_dist[l] / total_tokens * 100, 2)))
     '''
     
-    end=time.time()
-    print(f"time:{end-start}s")
-    pdb.set_trace()
+    # end=time.time()
+    # print(f"time:{end-start}s")
+    # pdb.set_trace()
     # save results to a json file
     # model_tag = "llama-7b" from model_name "huggyllama/llama-7b"
     model_tag = model_name.split('/')[-1] if model_name[-1] != '/' else model_name.split('/')[-2]
