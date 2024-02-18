@@ -42,7 +42,7 @@ python ../eval_knowledge_qa.py --model-name $model --dataset_name $dataset --dec
 
 
 ##### ACTIVATION_DOLA #####
-decoding_mode="activation"
+decoding_mode="activation_dola"
 alpha="1"
 info_layer="32"
 decoding_strategy="entropy"
