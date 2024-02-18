@@ -201,7 +201,7 @@ if __name__ == "__main__":
     parser.add_argument("--alpha", type=float, default=0.1)
     parser.add_argument("--info_layer", type=int, default=24)
     parser.add_argument("--decoding_strategy", type=str)
-    parser.add_argument("--return_adjust_scores", type=bool, default=False) # return the entropy score or dola logit score
+    parser.add_argument("--return_adjust_scores", type=bool, default=True) # return the entropy score or dola logit score
     parser.add_argument("--mj_threshold", type=float)
     parser.add_argument("--debug", type=bool, default=False)
     
@@ -242,50 +242,51 @@ if __name__ == "__main__":
     
 
     # 3. set decoding mode
-    if args.activation:
+    if args.decoding_mode == 'activation':
         mode="activation"
-        print(f"MODE: Consistent decoding with mature layer: {early_exit_layers[-1]} and premature layers: {early_exit_layers[:-1]}")
+        print(f"MODE: Activation decoding with mature layer: {early_exit_layers[-1]} and premature layers: {early_exit_layers[:-1]}")
+        
+        mature_layer = early_exit_layers[-1]
+        premature_layer = None
+        candidate_premature_layers = early_exit_layers[:-1]
+        # what is premature layer dist? distance?
+        premature_layer_dist = {l:0 for l in candidate_premature_layers}
+
+    elif args.decoding_mode == 'dola':
+        mode = "dola"
+        print(f"MODE: DoLa decoding with mature layer: {early_exit_layers[-1]} and premature layers: {early_exit_layers[:-1]}")
+        
         mature_layer = early_exit_layers[-1]
         premature_layer = None
         candidate_premature_layers = early_exit_layers[:-1]
         premature_layer_dist = {l:0 for l in candidate_premature_layers}
-    elif len(early_exit_layers) == 1:
+        
+    elif args.decoding_mode == 'activation_dola':
+        # TODO: not implemented yet
+        # mode="activation"
+        mode='with_dola'
+        print(f"MODE: Activation+DoLa decoding with mature layer: {early_exit_layers[-1]} and premature layers: {early_exit_layers[:-1]}")
+        mature_layer = early_exit_layers[-1]
+        premature_layer = None
+        candidate_premature_layers = early_exit_layers[:-1]
+        premature_layer_dist = {l:0 for l in candidate_premature_layers}
+        
+    elif args.decoding_mode == 'baseline' or args.decoding_mode == 'iti':
         print("MODE: naive decoding from the last layer", flush=True)
         mode = "baseline"
         mature_layer = None
         premature_layer = None
         candidate_premature_layers = None
-        if args.repetition_penalty is None:
-            args.repetition_penalty = 1.0
-            
+
     elif len(early_exit_layers) == 2:
         print(f"MODE: DoLa-static decoding with mature layer: {early_exit_layers[1]} and premature layer: {early_exit_layers[0]}")
         mode = "early_exit_contrastive"
         mature_layer = early_exit_layers[1]
         premature_layer = early_exit_layers[0]
         candidate_premature_layers = None
-        if args.repetition_penalty is None:
-            args.repetition_penalty = 1.2
+
     else:
-        if args.with_dola:
-            print(f"MODE: Consistent-DoLa decoding with mature layer: {early_exit_layers[-1]} and premature layers: {early_exit_layers[:-1]}")
-            mode = "with_dola"
-            mature_layer = early_exit_layers[-1]
-            premature_layer = None
-            candidate_premature_layers = early_exit_layers[:-1]
-            premature_layer_dist = {l:0 for l in candidate_premature_layers}
-            if args.repetition_penalty is None:
-                args.repetition_penalty = 1.2
-        else:
-            print(f"MODE: DoLa decoding with mature layer: {early_exit_layers[-1]} and premature layers: {early_exit_layers[:-1]}")
-            mode = "dola"
-            mature_layer = early_exit_layers[-1]
-            premature_layer = None
-            candidate_premature_layers = early_exit_layers[:-1]
-            premature_layer_dist = {l:0 for l in candidate_premature_layers}
-            if args.repetition_penalty is None:
-                args.repetition_penalty = 1.2
-    
+        raise NotImplementedError(f"Decoding mode {args.decoding_mode} not implemented yet.")
     # 4. set decoding parameters
     generate_kwargs = dict(max_new_tokens=args.max_new_tokens, top_p=args.top_p, 
                             top_k=args.top_k, temperature=args.temperature, repetition_penalty=args.repetition_penalty, mode=mode, mature_layer=mature_layer, premature_layer=premature_layer, candidate_premature_layers=candidate_premature_layers,\
@@ -308,19 +309,19 @@ if __name__ == "__main__":
     # val_idx = permute_idx[0:100]
     # test_idx = permute_idx[100:]
 
-    val_idx = permute_idx[0:int(len(list_data_dict)*.5)]
-    test_idx = permute_idx[int(len(list_data_dict)*.5):]
+    # val_idx = permute_idx[0:int(len(list_data_dict)*.5)]
+    # test_idx = permute_idx[int(len(list_data_dict)*.5):]
 
     # 6. inference
     result_dict = {'qid_list':[], 'answers': {}, 'model_completion': {}, 'questions': {}, 'logit_scores': {}}
     # result_dict = {'question': [], 'qid_list':[], 'model_completion': [], 'logit_scores': []}
-    val_dataset = [list_data_dict[idx] for idx in val_idx]
-    test_dataset = [list_data_dict[idx] for idx in test_idx]
+    # val_dataset = [list_data_dict[idx] for idx in val_idx]
+    # test_dataset = [list_data_dict[idx] for idx in test_idx]
     dataset=list_data_dict
-    if args.val_test_mode=='val':
-        dataset=val_dataset
-    elif args.val_test_mode=='test':
-        dataset=test_dataset
+    # if args.val_test_mode=='val':
+    #     dataset=val_dataset
+    # elif args.val_test_mode=='test':
+    #     dataset=test_dataset
     for i, question in enumerate(tqdm(dataset)):
  
         # question = 'What happens to you if you eat watermelon seeds?'
@@ -329,7 +330,7 @@ if __name__ == "__main__":
         
         if args.return_adjust_scores:
             model_completion, c_dist, outputs = llm.generate(prompt, **generate_kwargs)
-            logit_scores = llm.get_lm_scores_from_outputs(outputs, mode=mode)
+            # logit_scores = llm.get_lm_scores_from_outputs(outputs, mode=mode)
         else:
             model_completion, c_dist = llm.generate(prompt, **generate_kwargs)
             
@@ -355,8 +356,7 @@ if __name__ == "__main__":
         # result_dict['answers'][i] = answer
         result_dict['model_completion'][i] = model_completion
         result_dict['questions'][i] = question
-        if args.return_adjust_scores:
-            result_dict['logit_scores'][i] = logit_scores
+        
         
 
         if args.debug:
