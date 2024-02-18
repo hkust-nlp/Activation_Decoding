@@ -5,7 +5,7 @@ Activation_Decoding: Decoding by sharpness inside Large Language Models
 
 ## Overview
 
-![](figure/ad.pdf)
+![](figure/ad.png)
 
 This is the code implementation of the paper: [In-Context Sharpness as Alerts: An Inner Representation Perspective for Hallucination Mitigation
 ](https://github.com/hkust-nlp/Activation_decoding)
