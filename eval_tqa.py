@@ -296,7 +296,7 @@ if __name__ == "__main__":
     print(f"Decoding parameters: {generate_kwargs}\n")
         
     # 5. split the dataset into val and test
-    os.makedirs(os.path.dirname(args.data_path), exist_ok=True)        
+    os.makedirs(args.data_path, exist_ok=True)        
     try:
         permute_idx = np.load(os.path.join(args.data_path, "val_test_idx_{}.npy"))
     except:

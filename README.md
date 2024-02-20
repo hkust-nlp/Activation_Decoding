@@ -14,10 +14,10 @@ In this paper, we aim to understand the underlying mechanisms of LLM hallucinati
 
 ## Setup
 ```
+conda create --name decode python=3.8
+conda activate decode
 pip install -e transformers
-pip install datasets
-pip install accelerate
-pip install openai # -> only for truthfulqa and gpt4_eval
+pip install -r requirements.txt
 ```
 
 
@@ -39,7 +39,7 @@ pip install openai # -> only for truthfulqa and gpt4_eval
 ### TrivialQA, HotpotQA and Natural Questions
 
 ```bash
-cd script
+cd scripts
 bash run_qa.sh # refer to this script for more details
 ```
 ### TruthfulQA
@@ -47,7 +47,7 @@ bash run_qa.sh # refer to this script for more details
 #### Multi Choice
 
 ```bash
-cd script
+cd scripts
 bash run_mctqa.sh # refer to this script for more details
 ```
 
@@ -74,7 +74,7 @@ Create a config file `gpt3.config.json` like this:
 Add the argument ` --gpt3-config gpt3.config.json` for GPT-3 evaluation.
 
 ```bash
-cd script
+cd scripts
 bash run_tqa.sh # refer to this script for more details
 ```
 

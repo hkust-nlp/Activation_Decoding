@@ -5,14 +5,12 @@
 import re, pdb
 import os
 import json
-import random
 import numpy as np
 import transformers
 from tqdm import tqdm
 import argparse
 import ssl
 import urllib.request
-import zipfile
 from datasets import load_dataset
 import matplotlib.pyplot as plt
 from sklearn.metrics import roc_auc_score, average_precision_score, auc, precision_recall_curve
@@ -304,13 +302,12 @@ if __name__ == "__main__":
     print("*"*20)
     print("\n\n")
     
-    os.makedirs(os.path.dirname(args.data_path), exist_ok=True)  
+    os.makedirs(args.data_path, exist_ok=True) 
 
     try:
         permute_idx = np.load(os.path.join(args.data_path, "val_test_idx_{}.npy"))
     except:
         permute_idx = np.random.permutation(len(list_data_dict))  
-        os.makedirs(os.path.dirname(args.data_path), exist_ok=True)    
         np.save(os.path.join(args.data_path, "val_test_idx_{}.npy"), permute_idx)
 
     # val_idx = permute_idx[0:100]

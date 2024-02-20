@@ -1,3 +1,4 @@
 datasets
 accelerate
 openai
+scikit-learn
