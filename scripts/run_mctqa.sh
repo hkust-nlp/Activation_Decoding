@@ -13,9 +13,9 @@ output_path="../res/res_mctqa/${model_name}_${mode}.json"
 
 ####DOLA####
 early_exit_layers="0,2,4,6,8,10,12,14,32"
-if [ "$model_name" == "llama-2-13b-chat-hf" ]; then
+if [ "${model_name,,}" == "llama-2-13b-chat-hf" ]; then
     early_exit_layers="0,2,4,6,8,10,12,14,16,18,40"
-elif  [ "$model_name" == "llama-2-70b-chat-hf" ]; then
+elif  [ "${model_name,,}" == "llama-2-70b-chat-hf" ]; then
     early_exit_layers="0,2,4,6,8,10,12,14,16,18,80"
 fi
 mode="dola"
