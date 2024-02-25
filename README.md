@@ -31,7 +31,9 @@ pip install openai # -> only for truthfulqa and gpt4_eval
 | `--data-path`     | `/path/to/dataset` | Path to the dataset file or folder. |
 | `--dataset-name`     | `hotpotqa` | The dataset for evaluation. Can choose from `"natural_questions" or "triviaqa"` |
 | `--decoding_mode`      |``activation`` | Choose the decoding mode. Can choose from  `"baseline", "dola", "activation","activation_dola"` |
-| `--decoding_strategy`      |``entropy` | Add this when the `"decoding_mode"` is `activation`or `activation_dola`.  Can choose from  `"entropy", "single_entropy"` |
+| `--decoding_strategy`      |`entropy` | Add this when the `"decoding_mode"` is `activation`or `activation_dola`.  Can choose from  `"entropy", "single_entropy"` |
+| `--alpha`      |`0.5`| Control the magnitude of activation. For OOD test, we use `0.5/0.8/1.0` for `7B/13B/70B` models. |
+| `--info_layer`      |`26`| The index of layer we use to calculate the entropy. For OOD test, we use `26/34/70` for `7B/13B/70B` models. |
 | `--output-path`   | ``../res/res_hpqa/${model_name}/${decoding_mode}.json`` | Where to store the output results. |
 | `--num-gpus`      | `1` | Number of GPUs to use, `1/1/2` for `7B/13B/70B` model sizes respectively if you are using 80G GPU cards.  |
 | `--do-rating`      | | Add this to output evaluation results  |
