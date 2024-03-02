@@ -1,7 +1,6 @@
+
 Activation_Decoding: Decoding by sharpness inside Large Language Models
 =======================================================================
-
-
 
 ## Overview
 
@@ -10,16 +9,17 @@ Activation_Decoding: Decoding by sharpness inside Large Language Models
 This is the code implementation of the paper: [In-Context Sharpness as Alerts: An Inner Representation Perspective for Hallucination Mitigation
 ](https://github.com/hkust-nlp/Activation_decoding)
 
-In this paper, we aim to understand the underlying mechanisms of LLM hallucinations from the perspective of inner representations. We discover a pattern associated with hallucinations: correct generations tend to have *sharper* context activations in the hidden states of the in-context tokens, compared to that of the incorrect generations. Leveraging this signal, we propose an entropy-based metric to quantify the "*sharpness* " among the in-context hidden states and incorporate it into the decoding process, i.e, use the entropy value to adjust the next token prediction distribution to improve the factuality and overall quality of the generated text. Experiments on knowledge-seeking datasets (Natural Questions, HotpotQA, TriviaQA) and hallucination benchmark (TruthfulQA) demonstrate our consistent effectiveness, e.g., reach an improvement of up to 8.6 absolute points on TruthfulQA. We believe this study can improve our understanding of hallucinations and serve as a practical solution for hallucination mitigation.
+We discover a pattern associated with hallucinations: correct generations tend to have *sharper* context activations in the hidden states of the in-context tokens, compared to that of the incorrect generations. Leveraging this signal, we propose an entropy-based metric to quantify the "*sharpness* " among the in-context hidden states and incorporate it into the decoding process, i.e, use the entropy value to adjust the next token prediction distribution to improve the factuality and overall quality of the generated text.
 
 ## Setup
+
 ```
+
 conda create --name decode python=3.8
 conda activate decode
 pip install -e transformers
 pip install -r requirements.txt
 ```
-
 
 ## Experiments
 
@@ -38,12 +38,23 @@ pip install -r requirements.txt
 | `--num-gpus`      | `1` | Number of GPUs to use, `1/1/2` for `7B/13B/70B` model sizes respectively if you are using 80G GPU cards.  |
 | `--do-rating`      | | Add this to output evaluation results  |
 
-### TrivialQA, HotpotQA and Natural Questions
+#### In-domain Hyperparameter choice
+
+In the table below, we present the `alpha` with the `info_layer` choices for each knowledge-seeking dataset, formatted as `alpha/info_layer`.
+
+| | TriviaQA | HotpotQA | NQ |
+|---| --- | --- | --- |
+|`LLaMa2-7B-chat`| `1/32`| `0.8/32` |`0.2/32`  |
+|`LLaMa2-13B-chat`| `0.6/32` |`1/28`  |  `0.8/34`|
+|`LLaMa2-70B-chat`|  `1/70`| `0.6/66` | `1/68` |
+
+### TriviaQA, HotpotQA and Natural Questions
 
 ```bash
 cd scripts
 bash run_qa.sh # refer to this script for more details
 ```
+
 ### TruthfulQA
 
 #### Multi Choice
@@ -52,7 +63,6 @@ bash run_qa.sh # refer to this script for more details
 cd scripts
 bash run_mctqa.sh # refer to this script for more details
 ```
-
 
 #### Open generation
 
@@ -87,6 +97,10 @@ bash run_tqa.sh # refer to this script for more details
 ## Citation
 
 Please cite our paper if it's helpful to your work!
+
+```
+
+```
 
 ```
 
