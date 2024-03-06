@@ -7,7 +7,7 @@ Activation_Decoding: Decoding by sharpness inside Large Language Models
 ![](figure/ad.png)
 
 This is the code implementation of the paper: [In-Context Sharpness as Alerts: An Inner Representation Perspective for Hallucination Mitigation
-](https://github.com/hkust-nlp/Activation_decoding)
+](https://arxiv.org/abs/2403.01548)
 
 We discover a pattern associated with hallucinations: correct generations tend to have *sharper* context activations in the hidden states of the in-context tokens, compared to that of the incorrect generations. Leveraging this signal, we propose an entropy-based metric to quantify the "*sharpness* " among the in-context hidden states and incorporate it into the decoding process, i.e, use the entropy value to adjust the next token prediction distribution to improve the factuality and overall quality of the generated text.
 
@@ -98,10 +98,16 @@ bash run_tqa.sh # refer to this script for more details
 
 Please cite our paper if it's helpful to your work!
 
-```
+```bibtex
+@inproceedings{
+chen2024incontext,
+title={In-Context Sharpness as Alerts: An Inner Representation Perspective for Hallucination Mitigation},
+author={Chen, Shiqi and Xiong, Miao and Liu, Junteng and Wu, Zhengxuan and Xiao, Teng and Gao, Siyang and He, Junxian},
+booktitle={Arxiv},
+year={2024},
+url={https://arxiv.org/abs/2403.01548}
+}
 
 ```
 
-```
 
-```
