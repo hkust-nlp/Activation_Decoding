@@ -1,4 +1,4 @@
-name: shiqi
+name: nickname
 channels:
   - anaconda
   - defaults
@@ -125,4 +125,4 @@ dependencies:
       - xmltodict==0.13.0
       - xxhash==3.2.0
       - yarl==1.8.2
-prefix: /home/adseadmin/miniconda3/envs/shiqi
+prefix: /home/adseadmin/miniconda3/envs/nickname
